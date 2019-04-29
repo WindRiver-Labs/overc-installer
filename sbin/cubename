@@ -1,0 +1,134 @@
+#!/bin/bash
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+usage()
+{
+cat << EOF
+
+  cubename [--prefix <prefix>] <path to cube file>
+
+  example:
+    
+      $  cubename cube-server-genericx86-64-20151030174740.rootfs.tar.bz2
+ 
+  options:
+      --prefix: specify an arbitrary prefix which is found in front of the
+                container filename
+EOF
+}
+
+if [ -z "$1" ]; then
+    usage
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+	--prefix)
+	    prefix="$2"
+	    shift
+	    ;;
+	--suffix)
+	    suffix="$2"
+	    shift
+	    ;;
+	-v) verbose=t
+            ;;
+        *) break
+            ;;
+    esac
+    shift
+done
+
+# Parms: $1 = filename
+function extract_container_name
+{
+    local fullname=$1
+
+    # container names follow these rules:
+    #
+    # [<prefix>]<type>-<name>-<rest>
+    #
+    # <prefix>: optional filename prefix
+    # <type>: cube, docker, lxc, oci
+    # <name>: dom or <string>
+    # 
+    # if name is 'dom', the next character or -<string> is the
+    # name of the domain. Strings must be all alpha numeric.
+    #
+    # <rest>: <arch>.tar.bz
+    # <arch>: genericx86-64, ARM, etc.
+    #  
+    #
+    # system container: cube-dom<x>-<rest>
+    # application container: cube-<string>-<rest>
+    # 
+
+    container_src=`basename $fullname`
+
+    if [ -v prefix -a -n "$prefix" ]; then
+	container_src=$(echo $container_src | sed "s/^${prefix}//")
+    fi
+
+    # read in the parts, split by '-'. keys start with 0 and increase
+    array=(${container_src//\-/ }) 
+
+    type=${array[0]}
+    name=${array[1]}
+
+    if [ "$type" = "cube" ]; then
+	case $name in
+	    dom*)
+		output=$name
+		;;
+	    *)
+		output=$type-$name
+		;;
+	esac
+    fi
+
+    # Wind River Linux produces container image names
+    # where type == "container", thus:
+    # <prefix>container-<name>-<rest>
+    if [ "$type" = "container" ]; then
+	output=$type-$name
+    fi
+
+    # Other valid types
+    if [ "$type" = "docker" ] || \
+       [ "$type" = "oci" ]  || \
+       [ "$type" = "lxc" ]; then
+	case $name in
+	    dom*)
+		output=$name
+		;;
+	    *)
+		output=$type-$name
+		;;
+	esac
+    fi
+
+
+    if [ -n "${output}" ]; then
+        echo ${output}
+        return 0
+    else
+        return 1
+    fi
+}
+
+extract_container_name $1
+if [ $? -eq 0 ] ; then
+    exit 0
+else
+    echo "ERROR: Could not determine container name" >&2
+    exit 1
+fi

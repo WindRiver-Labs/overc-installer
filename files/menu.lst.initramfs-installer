@@ -1,0 +1,6 @@
+default		0
+timeout		5
+
+title		%DISTRIBUTION% Installer
+kernel		/bzImage rootwait root=LABEL=%ROOTFS_LABEL% ima_appraise=off
+initrd		/%INSTALL_INITRAMFS%
